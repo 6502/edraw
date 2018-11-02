@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      html {
+          width: 100%;
+          height: 100%;
+      }
+      body {
+          padding: 0px;
+          margin: 0px;
+          overflow: hidden;
+          background: #444;
+          width: 100%;
+          height: 100%;
+          user-select: none;
+          -moz-user-select: none;
+      }
+      #canvas {
+          position: absolute;
+          left: 0px;
+          top: 0px;
+      }
+      #status {
+          position: absolute;
+          left: 0px;
+          right: 0px;
+          bottom: 8px;
+          color: #CCC;
+          font-size: 24px;
+          font-family: sans-serif;
+          text-align: center;
+          line-height: 2em;
+      }
+      #status > .key {
+          border-radius: 6px;
+          background: #888;
+          color: #222;
+          box-shadow: inset 1px 1px #FFF, 2px 2px 2px rgba(0,0,0,0.5);
+          padding: 2px;
+          padding-left: 8px;
+          padding-right: 8px;
+          font-weight: bold;
+          margin: 2px;
+      }
+      #btnbar {
+          position: absolute;
+          right: 0px;
+          top: 0px;
+          background: rgba(0,0,0,0.25);
+      }
+      #btnbar > input[type=button] {
+          padding: 6px;
+          font-size: 16px;
+          font-weight: bold;
+          border-radius: 4px;
+          background: #CCC;
+          width: 120px;
+          display: block;
+          margin: 10px;
+      }
+      #btnbar > .space {
+          height: 8px;
+      }
+      .colbtn {
+          width: 40px;
+          height: 40px;
+          margin: 4px;
+          border-radius: 4px;
+          display: inline-block;
+          box-shadow: inset 2px 2px 3px rgba(255, 255, 255, 0.5), inset -2px -2px 3px rgba(0, 0, 0, 0.5)
+      }
+      .menu {
+          position: absolute;
+          padding: 8px;
+          padding-top: 0px;
+          background: #888;
+          box-shadow: inset 1px 1px 1px #FFF, inset -1px -1px 1px #000, 4px 4px 4px rgba(0,0,0, 0.25);
+          border-radius: 4px;
+          color: #000;
+          font-size: 18px;
+          font-weight: bold;
+          font-family: sans-serif;
+      }
+      .menu > .title {
+          font-size: 20;
+          margin-top: 8px;
+          color: #FFF;
+      }
+      .menu > .option {
+          border-radius: 2px;
+          padding: 2px;
+          padding-bottom: 0px;
+          padding-left: 8px;
+          padding-right: 8px;
+      }
+      .menu > .option:hover {
+          background: #FFF;
+      }
+      .glass {
+          position: fixed;
+          left: 0px;
+          top: 0px;
+          right: 0px;
+          bottom: 0px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <div id="status"></div>
+    <div id="btnbar"></div>
+    <script>
+
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d"), csz = undefined, sf=1, zx=0, zy=0, grid=50;
+let entities = [], editor, undo_stack = [], redo_stack = [], ur_level = 0;
+let status = document.getElementById("status");
+
+function popup(x, y, ...options) {
+    show_popup(x, y, undefined, options);
+}
+
+function show_popup(x, y, parent, options) {
+    let glass = document.createElement("div"),
+        menu = glass.appendChild(document.createElement("div")),
+        enter = false;
+    glass.className = "glass";
+    menu.className = "menu";
+    menu.style.left = x + "px";
+    menu.style.top = y + "px";
+    options.forEach(o => {
+        if (typeof o === "string") {
+            let i = menu.appendChild(document.createElement("div"));
+            i.className = "title";
+            i.textContent = o;
+        } else {
+            let i = menu.appendChild(document.createElement("div"));
+            i.className = "option";
+            i.textContent = o.text;
+            i.onmousedown = i.onmouseup = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                document.body.removeChild(glass);
+                o.action();
+            };
+            i.onmouseenter = ()=>{ enter = true; };
+        }
+    });
+    glass.onmouseup = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (enter) document.body.removeChild(glass);
+    };
+    glass.onmousedown = (event)=>{
+        event.preventDefault();
+        event.stopPropagation();
+        document.body.removeChild(glass);
+    };
+    document.body.appendChild(glass);
+}
+
+function addButton(text, action) {
+    let d = document.createElement("input");
+    d.type = "button";
+    d.value = text;
+    d.onclick = action;
+    btnbar.appendChild(d);
+}
+
+function addSpace(text, action) {
+    let d = document.createElement("div");
+    d.className = "space";
+    btnbar.appendChild(d);
+}
+
+function ur_begin(title) {
+    if (++ur_level === 1) {
+        redo_stack.splice(0, redo_stack.length);
+        undo_stack.push([title]);
+    }
+}
+
+function ur_end() {
+    --ur_level;
+}
+
+function ur_add(step) {
+    undo_stack[undo_stack.length-1].push(step);
+    step.redo();
+    invalidate();
+}
+
+function ur_set(obj, index, value) {
+    let ov = obj[index];
+    ur_add({undo:()=>{ obj[index] = ov; },
+            redo:()=>{ obj[index] = value; }});
+}
+
+function ur_vset(sgf, value) {
+    let ov = sgf();
+    ur_add({undo:()=>{ sgf(ov); },
+            redo:()=>{ sgf(value); }});
+}
+
+function undo() {
+    if (undo_stack.length) {
+        let op = undo_stack.pop();
+        redo_stack.push(op);
+        for (let i=op.length-1; i>0; i--) {
+            op[i].undo();
+        }
+        invalidate();
+    }
+}
+
+function redo() {
+    if (redo_stack.length) {
+        let op = redo_stack.pop();
+        undo_stack.push(op);
+        for (let i=1; i<op.length; i++) {
+            op[i].redo();
+        }
+        invalidate();
+    }
+}
+
+function clone(x) {
+    let y = new x.constructor();
+    Object.keys(x).forEach(k => y[k] = x[k]);
+    return y;
+}
+
+function map({x, y}) {
+    return {x: x*sf+zx, y: y*sf+zy};
+}
+
+function rmap(x, y) {
+    return {x: (x-zx)/sf, y: (y-zy)/sf};
+}
+
+function dist(a, b) {
+    return ((a.x - b.x)**2 + (a.y - b.y)**2) ** 0.5;
+}
+
+function lerp(a, b, t) {
+    return a*(1-t) + b*t;
+}
+
+function lerp2(a, b, c, t) {
+    return (a*(1-t)+b*t)*(1-t) + (b*(1-t)+c*t)*t;
+}
+
+function avg(a, b){
+    return {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+}
+
+function inside(p, pts) {
+    let r = false;
+    for (let i=0,n=pts.length,j=n-1; i<n; j=i++) {
+        let a = pts[j], b = pts[i];
+        if ((p.y >= b.y && p.y < a.y) || (p.y >= a.y && p.y < b.y)) {
+            if (a.x + (p.y - a.y)*(b.x - a.x)/(b.y - a.y) < p.x) r = !r;
+        }
+    }
+    return r;
+}
+
+function select(e) {
+    editor = e;
+    repaint();
+}
+
+function dot(ctx, p, color="#F00", r=-4){
+    ctx.beginPath();
+    ctx.arc(p.x*sf+zx, p.y*sf+zy, r<0 ? -r : r*sf, 0, 2*Math.PI, true);
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function drawLine(ctx, a, b, color="#F00", width=-1) {
+    ctx.beginPath();
+    ctx.moveTo(a.x*sf+zx, a.y*sf+zy);
+    ctx.lineTo(b.x*sf+zx, b.y*sf+zy);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width<0 ? -width : width*sf;
+    ctx.stroke();
+}
+
+function drawBez2(ctx, a, b, c, color="#F00", width=-1) {
+    ctx.beginPath();
+    ctx.moveTo(a.x*sf+zx, a.y*sf+zy);
+    ctx.quadraticCurveTo(b.x*sf+zx, b.y*sf+zy, c.x*sf+zx, c.y*sf+zy);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width<0 ? -width : width*sf;
+    ctx.stroke();
+}
+
+function drawCircle(ctx, p, r, color="#F00", width=-1) {
+    ctx.beginPath();
+    ctx.arc(p.x*sf+zx, p.y*sf+zy, r*sf, 0, 2*Math.PI, true);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width<0 ? -width : width*sf;
+    ctx.stroke();
+}
+
+function fillCircle(ctx, p, r, color) {
+    ctx.beginPath();
+    ctx.arc(p.x*sf+zx, p.y*sf+zy, r*sf, 0, 2*Math.PI, true);
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function drawPolygon(ctx, pts, color="#F00", width=-1) {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+        if (i) {
+            ctx.lineTo(p.x*sf+zx, p.y*sf+zy);
+        } else {
+            ctx.moveTo(p.x*sf+zx, p.y*sf+zy);
+        }
+    });
+    ctx.closePath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width<0 ? -width : width*sf;
+    ctx.stroke();
+}
+
+function fillPolygon(ctx, pts, color="#F00") {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+        if (i) {
+            ctx.lineTo(p.x*sf+zx, p.y*sf+zy);
+        } else {
+            ctx.moveTo(p.x*sf+zx, p.y*sf+zy);
+        }
+    });
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+}
+
+function rtext(s) {
+    return s.replace(/[\[]([^\]]*)[\]]/g, '<span class="key">$1</span>');
+}
+
+function repaint() {
+    let w = canvas.width = innerWidth;
+    let h = canvas.height = innerHeight;
+    if (grid) {
+        ctx.beginPath();
+        for (let y=Math.floor((0-zy)/sf/grid)*grid,yy; (yy=Math.floor((y*sf+zy)+0.5)+0.5)<h; y+=grid) {
+            ctx.moveTo(0, yy); ctx.lineTo(w, yy);
+        }
+        for (let x=Math.floor((0-zx)/sf/grid)*grid,xx; (xx=Math.floor((x*sf+zx)+0.5)+0.5)<w; x+=grid) {
+            ctx.moveTo(xx, 0); ctx.lineTo(xx, h);
+        }
+        ctx.strokeStyle = "#666";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+    entities.forEach(e => e.draw(ctx));
+    if (editor) {
+        editor.draw(ctx);
+        status.innerHTML = rtext(editor.text || "");
+    } else {
+        status.innerHTML = rtext("[left]:Select, [middle]:Pan, [wheel]:Zoom, [⇧][wheel]:Undo/Redo");
+    }
+}
+
+function track(f) {
+    function mm(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        f(event.clientX, event.clientY, event.button, 1);
+    }
+    function mu(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        f(event.clientX, event.clientY, event.button, 2);
+        document.removeEventListener("mousemove", mm);
+        document.removeEventListener("mouseup", mu);
+    }
+    document.addEventListener("mousemove", mm);
+    document.addEventListener("mouseup", mu);
+}
+
+document.oncontextmenu = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+};
+
+canvas.onmousedown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.button === 1) {
+        let xx = event.clientX, yy = event.clientY;
+        track((x, y) => {
+            zx += x - xx; zy += y - yy;
+            xx = x; yy = y;
+            repaint();
+        });
+    } else {
+        if (editor && editor.hit(event.x, event.y, event.button)) return;
+        editor = undefined;
+        invalidate();
+        for (let i=entities.length-1; i>=0; i--) {
+            if (entities[i].hit && entities[i].hit(event.x, event.y, event.button)) return;
+        }
+        if (event.button === 0) {
+            let x0 = event.x, y0 = event.y, x1 = x0, y1 = y0;
+            editor = {
+                draw(ctx) {
+                    ctx.beginPath();
+                    ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y1); ctx.lineTo(x0, y1);
+                    ctx.closePath();
+                    ctx.strokeStyle = "#F00";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.125)";
+                    ctx.fill();
+                }
+            };
+            track((x, y, b, phase) => {
+                x1 = x; y1 = y;
+                if (phase === 2) {
+                    editor = undefined;
+                    let oe=entities, xe = [], ne = [], rr = undefined,
+                        xa = (Math.min(x0, x1)-zx)/sf, xb = (Math.max(x0, x1)-zx)/sf,
+                        ya = (Math.min(y0, y1)-zy)/sf, yb = (Math.max(y0, y1)-zy)/sf;
+                    entities.forEach(e => {
+                        let b = e.bbox();
+                        if (b.x0 >= xa && b.y0 >= ya && b.x1 <= xb && b.y1 <= yb) {
+                            if (rr === undefined) {
+                                rr = b;
+                            } else {
+                                rr.x0 = Math.min(rr.x0, b.x0);
+                                rr.y0 = Math.min(rr.y0, b.y0);
+                                rr.x1 = Math.max(rr.x1, b.x1);
+                                rr.y1 = Math.max(rr.y1, b.y1);
+                            }
+                            xe.push(e);
+                        } else {
+                            ne.push(e);
+                        }
+                    });
+                    if (xe.length) {
+                        ne.push(new Group(rr, xe));
+                        ur_begin("Group creation");
+                        ur_add({undo:()=>{ entities=oe; }, redo:()=>{ entities=ne; }});
+                        ur_end();
+                        editor = new GroupEditor(ne[ne.length-1]);
+                    }
+                }
+                repaint();
+            });
+        } else if (event.button === 2) {
+            popup(event.clientX, event.clientY,
+                  "Draw",
+                  {text: "circle", action: draw_circle},
+                  {text: "curve", action: draw_curve},
+                  {text: "polygon", action: draw_polygon},
+                  "Grid",
+                  {text: "10", action: ()=>{ grid=10; invalidate(); }},
+                  {text: "20", action: ()=>{ grid=20; invalidate(); }},
+                  {text: "50", action: ()=>{ grid=50; invalidate(); }},
+                  {text: "off", action: ()=>{ grid=undefined; invalidate(); }}
+                 );
+        }
+    }
+};
+
+function editPopup(e, x, y, ...extra) {
+    select(e.editor());
+    popup(x, y,
+          "Edit",
+          {text: "🗑 delete", action: ()=>{ delete_entity(e); }},
+          {text: "★★ clone", action: ()=>{ clone_entity(e); }},
+          {text: "↑ up", action: ()=>{ updown_entity(e, 1); }},
+          {text: "↓ down", action: ()=>{ updown_entity(e, -1); }},
+          {text: "⇑ top", action: ()=>{ updown_entity(e, Infinity); }},
+          {text: "⇓ bottom", action: ()=>{ updown_entity(e, -Infinity); }},
+          ...extra);
+}
+
+canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.shiftKey) {
+        let h = event.deltaY;
+        if (h < 0) undo();
+        if (h > 0) redo();
+        editor = undefined;
+    } else {
+        let p = rmap(event.clientX, event.clientY);
+        sf = Math.max(0.001, Math.min(1000, sf * Math.exp(-event.deltaY*[1, 10, 100][event.deltaMode]/300)));
+        zx = event.clientX - p.x*sf;
+        zy = event.clientY - p.y*sf;
+        repaint();
+    }
+});
+
+function drag(e) {
+    let first = true, p;
+    select(e.editor());
+    track((x, y, b)=>{
+        let np = rmap(x, y);
+        if (first) {
+            p = np;
+        } else {
+            undo();
+        }
+        ur_begin("Group translate");
+        e.transform(pt=>({x:pt.x+np.x-p.x, y:pt.y+np.y-p.y}));
+        ur_end();
+        first = false;
+    });
+}
+
+class Circle {
+    constructor(center, radius, style) {
+        this.center = center;
+        this.radius = radius;
+        this.style = style;
+    }
+    editor() {
+        return new CircleEditor(this);
+    }
+    clone() {
+        return new Circle(this.center, this.radius, clone(this.style));
+    }
+    setStyle(f, val) {
+        ur_set(this.style, f, val);
+    }
+    draw(ctx) {
+        if (this.style.fill) {
+            fillCircle(ctx, this.center, this.radius, this.style.fill);
+        }
+        if (this.style.stroke) {
+            drawCircle(ctx, this.center, this.radius, this.style.stroke, this.style.width);
+        }
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y);
+        if (dist(p, this.center) < Math.max(this.radius, 8/sf)) {
+            if (b === 0) {
+                drag(this);
+            } else if (b === 2) {
+                editPopup(this, x, y);
+            }
+            return true;
+        }
+    }
+    bbox() {
+        return {x0:this.center.x - this.radius,
+                y0:this.center.y - this.radius,
+                x1:this.center.x + this.radius,
+                y1:this.center.y + this.radius};
+    }
+    transform(m) {
+        ur_set(this, "center", m(this.center));
+    }
+};
+
+class CircleEditor {
+    constructor(e) {
+        this.e = e;
+        this.text = "Drag circle center or change circle radius";
+    }
+    draw(ctx) {
+        let p = {x: this.e.center.x + this.e.radius, y:this.e.center.y};
+        drawLine(ctx, this.e.center, p);
+        dot(ctx, this.e.center);
+        dot(ctx, p);
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y);
+        if (dist(p, {x:this.e.center.x+this.e.radius, y:this.e.center.y}) < 8/sf) {
+            let first = true;
+            track((x, y) => {
+                if (!first) undo();
+                ur_begin("Circle radius drag");
+                ur_set(this.e, "radius", dist(rmap(x, y), this.e.center));
+                ur_end();
+                first = false;
+            });
+            return true;
+        }
+        if (dist(p, this.e.center) < 8/sf) {
+            let first = true;
+            track((x, y) => {
+                let q = rmap(x, y);
+                let np = {x: this.e.center.x + q.x - p.x,
+                          y: this.e.center.y + q.y - p.y};
+                p = q;
+                if (!first) undo();
+                ur_begin("Circle center drag");
+                ur_set(this.e, "center", np);
+                ur_end();
+                first = false;
+            });
+            return true;
+        }
+    }
+}
+
+class Bez2 {
+    constructor(a, b, c, style) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.style = style;
+    }
+    editor() {
+        return new Bez2Editor(this);
+    }
+    clone() {
+        return new Bez2(this.a, this.b, this.c, clone(this.style));
+    }
+    setStyle(f, val) {
+        ur_set(this.style, f, val);
+    }
+    draw(ctx) {
+        drawBez2(ctx, this.a, this.b, this.c,
+                 this.style.stroke, this.style.width);
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y)
+        for (let i=0; i<=100; i++) {
+            let xx = lerp2(this.a.x, this.b.x, this.c.x, i/100),
+                yy = lerp2(this.a.y, this.b.y, this.c.y, i/100);
+            if (dist({x:xx, y:yy}, p) < Math.max(this.style.width/2, 8/sf)) {
+                if (b === 0) {
+                    drag(this);
+                } else {
+                    editPopup(this, x, y);
+                }
+                return true;
+            }
+        }
+    }
+    bbox() {
+        return {x0: Math.min(this.a.x, this.b.x, this.c.x),
+                y0: Math.min(this.a.y, this.b.y, this.c.y),
+                x1: Math.max(this.a.x, this.b.x, this.c.x),
+                y1: Math.max(this.a.y, this.b.y, this.c.y)};
+    }
+    transform(m) {
+        ur_set(this, "a", m(this.a));
+        ur_set(this, "b", m(this.b));
+        ur_set(this, "c", m(this.c));
+    }
+}
+
+class Bez2Editor {
+    constructor(e) {
+        this.e = e;
+        this.text = "Drag control points";
+    }
+    draw(ctx) {
+        drawLine(ctx, this.e.a, this.e.b);
+        drawLine(ctx, this.e.b, this.e.c);
+        dot(ctx, this.e.a); dot(ctx, this.e.b); dot(ctx, this.e.c);
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y);
+        if (b === 0) {
+            for (let dname of "abc") {
+                if (dist(p, this.e[dname]) < 8/sf) {
+                    let first = true;
+                    track((x, y) => {
+                        if (!first) undo();
+                        ur_begin("Bez2 point drag");
+                        ur_set(this.e, dname, rmap(x, y));
+                        ur_end();
+                        first = false;
+                    });
+                    return true;
+                }
+            }
+        }
+    }
+}
+
+class Polygon {
+    constructor(pts, style) {
+        this.pts = pts;
+        this.style = style;
+        this.smooth = false;
+    }
+    editor() {
+        return new PolygonEditor(this);
+    }
+    clone() {
+        return new Polygon(this.pts.slice(), clone(this.style));
+    }
+    setStyle(f, val) {
+        ur_set(this.style, f, val);
+    }
+    draw(ctx) {
+        if (this.style.stroke) drawPolygon(ctx, this.pts, this.style.stroke, this.style.width);
+        if (this.style.fill) fillPolygon(ctx, this.pts, this.style.fill);
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y)
+        if (inside(p, this.pts)) {
+            if (b === 0) {
+                drag(this);
+            } else {
+                editPopup(this, x, y);
+            }
+            return true;
+        }
+    }
+    bbox() {
+        let X = this.pts.map(p=>p.x), Y = this.pts.map(p=>p.y);
+        return {x0: Math.min(...X),
+                y0: Math.min(...Y),
+                x1: Math.max(...X),
+                y1: Math.max(...Y)};
+    }
+    transform(m) {
+        for (let i=0; i<this.pts.length; i++) {
+            ur_set(this.pts, i, m(this.pts[i]));
+        }
+    }
+}
+
+class PolygonEditor {
+    constructor(e) {
+        this.e = e;
+        this.text = "Drag control points";
+    }
+    draw(ctx) {
+        for (let i=0,n=this.e.pts.length,j=n-1; i<n; j=i++) {
+            drawLine(ctx, this.e.pts[j], this.e.pts[i]);
+            dot(ctx, this.e.pts[i]);
+            dot(ctx, avg(this.e.pts[j], this.e.pts[i]), "#0F0", -2);
+        }
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y);
+        for (let i=0,n=this.e.pts.length; i<n; i++) {
+            if (dist(p, this.e.pts[i]) < 8/sf) {
+                if (b === 0) {
+                    let first = true;
+                    track((x, y) => {
+                        if (!first) undo();
+                        ur_begin("Polygon point drag");
+                        ur_set(this.e.pts, i, rmap(x, y));
+                        ur_end();
+                        first = false;
+                    });
+                    return true;
+                } else {
+                    ur_begin("Polygon point delete");
+                    ur_set(this.e, "pts", this.e.pts.slice(0, i).concat(this.e.pts.slice(i+1)));
+                    ur_end();
+                    return true;
+                }
+            }
+        }
+        for (let i=0,n=this.e.pts.length,j=n-1; i<n; j=i++) {
+            let m = avg(this.e.pts[i], this.e.pts[j]);
+            if (dist(p, m) < 8/sf) {
+                ur_begin("Polygon point insert");
+                ur_set(this.e, "pts", this.e.pts.slice(0, i).concat([p]).concat(this.e.pts.slice(i)));
+                ur_end();
+                let first = true;
+                track((x, y) => {
+                    if (!first) undo();
+                    ur_begin("Polygon point drag");
+                    ur_set(this.e.pts, i, rmap(x, y));
+                    ur_end();
+                    first = false;
+                });
+                return true;
+            }
+        }
+    }
+}
+
+class Group {
+    constructor(r, entities) {
+        this.r = r;
+        this.entities = entities;
+        this.crot = {x:(r.x0+r.x1)/2, y:(r.y0+r.y1)/2};
+    }
+    editor() {
+        return new GroupEditor(this);
+    }
+    clone() {
+        let g = new Group(clone(this.r), this.entities.map(e=>e.clone()));
+        g.crot = this.crot;
+        return g;
+    }
+    setStyle(f, val) {
+        this.entities.forEach(e => e.setStyle(f, val));
+    }
+    draw(ctx) {
+        this.entities.forEach(e => e.draw(ctx));
+    }
+    hit(x, y, b) {
+        let pt = rmap(x, y);
+        if (pt.x >= this.r.x0 && pt.y >= this.r.y0 && pt.x <= this.r.x1 && pt.y <= this.r.y1) {
+            if (b === 0) {
+                drag(this);
+            } else {
+                editPopup(this, x, y,
+                          "Group",
+                          {text:"◌ Explode", action:()=>{this.editor().explode()}});
+            }
+            return true;
+        }
+    }
+    bbox() {
+        return this.r;
+    }
+    transform(m) {
+        let bb = undefined;
+        this.entities.forEach(e => {
+            e.transform(m);
+            let b = e.bbox();
+            if (bb === undefined) {
+                bb = b;
+            } else {
+                bb.x0 = Math.min(bb.x0, b.x0);
+                bb.y0 = Math.min(bb.y0, b.y0);
+                bb.x1 = Math.max(bb.x1, b.x1);
+                bb.y1 = Math.max(bb.y1, b.y1);
+            }
+        });
+        ur_set(this, "crot", m(this.crot));
+        ur_set(this, "r", bb);
+    }
+}
+
+class GroupEditor {
+    constructor(e) {
+        this.e = e;
+    }
+    draw(ctx) {
+        let a = {x:this.e.r.x0, y:this.e.r.y0},
+            b = {x:this.e.r.x1, y:this.e.r.y0},
+            c = {x:this.e.r.x1, y:this.e.r.y1},
+            d = {x:this.e.r.x0, y:this.e.r.y1};
+        dot(ctx, a); dot(ctx, b); dot(ctx, c); dot(ctx, d);
+        dot(ctx, this.e.crot, "#0F0");
+        drawLine(ctx, a, b);
+        drawLine(ctx, b, c);
+        drawLine(ctx, c, d);
+        drawLine(ctx, d, a);
+    }
+    hit(x, y, b) {
+        let p = rmap(x, y);
+        if (b === 0) {
+            if (dist(p, this.e.crot) < 8/sf) {
+                let first = true;
+                track((x, y, b) => {
+                    if (!first) undo();
+                    ur_begin("Rotation center drag");
+                    ur_set(this.e, "crot", rmap(x, y));
+                    ur_end();
+                    first = false;
+                });
+                return true;
+            } else {
+                let a = {x:this.e.r.x0, y:this.e.r.y0},
+                    b = {x:this.e.r.x1, y:this.e.r.y0},
+                    c = {x:this.e.r.x1, y:this.e.r.y1},
+                    d = {x:this.e.r.x0, y:this.e.r.y1};
+                if (Math.min(dist(a, p), dist(b, p), dist(c, p), dist(d, p)) < 8/sf) {
+                    let first = true, a0 = Math.atan2(p.y-this.e.crot.y, p.x-this.e.crot.x),
+                        cx = this.e.crot.x, cy =this.e.crot.y;
+                    track((x, y, b) => {
+                        let p = rmap(x, y);
+                        if (!first) undo();
+                        ur_begin("Group rotate");
+                        let aa = Math.atan2(p.y-this.e.crot.y, p.x-this.e.crot.x) - a0,
+                            cs = Math.cos(aa), sn = Math.sin(aa);
+                        function r(p) {
+                            let dx = p.x - cx, dy = p.y - cy;
+                            return {x: cx + dx*cs - dy*sn,
+                                    y: cy + dy*cs + dx*sn};
+                        }
+                        let bb = undefined;
+                        this.e.entities.forEach(e => {
+                            e.transform(r);
+                            let b = e.bbox();
+                            if (bb === undefined) {
+                                bb = b;
+                            } else {
+                                bb.x0 = Math.min(bb.x0, b.x0);
+                                bb.y0 = Math.min(bb.y0, b.y0);
+                                bb.x1 = Math.max(bb.x1, b.x1);
+                                bb.y1 = Math.max(bb.y1, b.y1);
+                            }
+                        });
+                        ur_set(this.e, "r", bb);
+                        ur_end();
+                        first = false;
+                    });
+                    return true;
+                } else if (p.x >= this.e.r.x0 && p.y >= this.e.r.y0 && p.x <= this.e.r.x1 && p.y <= this.e.r.y1) {
+                    drag(this.e);
+                    return true;
+                }
+            }
+        }
+    }
+    explode() {
+        let i = entities.indexOf(this.e);
+        if (i >= 0) {
+            let ne = entities.slice(0, i).concat(this.e.entities).concat(entities.slice(i+1)), oe = entities;
+            ur_begin("Group explode");
+            ur_add({undo: ()=>{ entities=oe; }, redo: ()=>{ entities=ne; }});
+            ur_end();
+            editor = undefined;
+            invalidate();
+        }
+    }
+}
+
+setInterval(()=>{
+    let sz = innerWidth + "/" + innerHeight;
+    if (sz !== csz) {
+        csz = sz;
+        repaint();
+    }
+}, 10);
+
+function invalidate() {
+    if (csz) {
+        csz = undefined;
+        setTimeout(()=>{
+            csz = innerWidth + "/" + innerHeight;
+            repaint();
+        }, 0);
+    }
+}
+
+function draw_circle() {
+    editor = {
+        text: "Draw circle: [left] on center and drag for radius",
+        draw(ctx) {
+        },
+        hit(x, y, b) {
+            let c = new Circle(rmap(x, y), 0, {fill:"#ABC"});
+            ur_begin("Circle draw");
+            ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
+            ur_end();
+            editor = new CircleEditor(entities[entities.length-1]);
+            repaint();
+            let first = true;
+            track((x, y) => {
+                if (!first) undo();
+                ur_begin("Circle radius drag");
+                ur_set(c, "radius", dist(rmap(x, y), c.center));
+                ur_end();
+                first = false;
+            });
+            return true;
+        }
+    };
+    repaint();
+}
+
+function draw_curve() {
+    editor = {
+        text: "Draw Curve: [left] on start and drag",
+        draw(ctx) {
+        },
+        hit(x, y, b) {
+            let p = rmap(x, y);
+            let c = new Bez2(p, p, p, {stroke:"#000", width:8});
+            ur_begin("Curve draw");
+            ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
+            ur_end();
+            editor = new Bez2Editor(entities[entities.length-1]);
+            repaint();
+            let first = true;
+            track((x, y) => {
+                let p = rmap(x, y);
+                if (!first) undo();
+                ur_begin("Curve draw");
+                ur_set(c, "c", p);
+                ur_set(c, "b", {x:(c.a.x+c.c.x)/2, y:(c.a.y+c.c.y)/2});
+                ur_end();
+                first = false;
+            });
+            return true;
+        }
+    };
+    repaint();
+}
+
+function draw_polygon() {
+    editor = {
+        text: "Add Polygon: [left] on start and drag",
+        draw(ctx) {
+        },
+        hit(x, y, b) {
+            let p = rmap(x, y);
+            let c = new Polygon([p, p, p, p], {fill:"#008"});
+            ur_begin("Polygon draw");
+            ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
+            ur_end();
+            editor = new PolygonEditor(entities[entities.length-1]);
+            repaint();
+            let first = true;
+            track((x, y) => {
+                let p = rmap(x, y);
+                if (!first) undo();
+                ur_begin("Polygon draw");
+                ur_set(c.pts, 2, p);
+                ur_set(c.pts, 1, {x:p.x, y:c.pts[0].y});
+                ur_set(c.pts, 3, {x:c.pts[0].x, y:p.y});
+                ur_end();
+                first = false;
+            });
+            return true;
+        }
+    };
+    repaint();
+}
+
+function updown_entity(e, delta) {
+    let i = entities.indexOf(e);
+    if (i >= 0) {
+        let oe = entities, ne = oe.slice(0, i).concat(oe.slice(i+1)),
+            j = Math.max(0, Math.min(ne.length, i+delta));
+        if (j !== i) {
+            ne.splice(j, 0, e);
+            ur_begin("Change entity depth");
+            ur_add({undo: ()=>{ entities=oe; }, redo: ()=>{ entities=ne; }});
+            ur_end();
+        }
+    }
+}
+
+function delete_entity(e) {
+    let i = entities.indexOf(e);
+    if (i >= 0) {
+        let ne = entities.slice(0, i).concat(entities.slice(i+1)), oe = entities;
+        ur_begin("Entity delete");
+        ur_add({undo:()=>{ entities=oe; }, redo:()=>{ entities=ne; }});
+        ur_end();
+        editor = undefined;
+    }
+}
+
+function clone_entity(e) {
+    let x = e.clone();
+    ur_begin("Duplicate object");
+    x.transform(p => ({x:p.x+16/sf, y:p.y+16/sf}));
+    let ne = entities.concat([x]), oe = entities;
+    ur_add({undo:()=>{ entities=oe; }, redo:()=>{ entities=ne; }});
+    ur_end();
+    editor = x.editor();
+}
+
+addButton("↶ Undo", ()=>{ editor=undefined; undo(); });
+addButton("↷ Redo", ()=>{ editor=undefined; redo(); });
+addSpace();
+addButton("Add Circle", draw_circle);
+addButton("Add Curve", draw_curve);
+addButton("Add Polygon", draw_polygon);
+
+addSpace();
+
+addButton("↑ Up", ()=> editor && updown_entity(editor.e, 1));
+addButton("↓ Down", () => editor && updown_entity(editor.e, -1));
+addButton("⇑ Top", () => editor && updown_entity(editor.e, Infinity));
+addButton("⇓ Bottom", () => editor && updown_entity(editor.e, -Infinity));
+
+addSpace();
+
+addButton("🗑 Delete", ()=>{ editor && delete_entity(editor.e) });
+addButton("★★ Clone", ()=>{ editor && clone_entity(editor.e) });
+
+addSpace();
+
+let palette = document.createElement("div");
+palette.style.width = "120px";
+palette.style.textAlign = "center";
+palette.style.margin = "10px";
+
+btnbar.appendChild(palette);
+for (let i=0; i<8; i++) {
+    let colbtn = palette.appendChild(document.createElement("div")),
+        col = "rgb(" + ((i>>2)&1)*255 + "," + ((i>>1)&1)*255 + "," + (i&1)*255 + ")";
+    colbtn.style.backgroundColor = col;
+    colbtn.className = "colbtn";
+    colbtn.value = "";
+    colbtn.onmousedown = (event)=>{
+        event.preventDefault();
+        event.stopPropagation();
+        if (editor) {
+            ur_begin("Color change");
+            editor.e.setStyle(event.shiftKey ? "stroke" : "fill", col);
+            ur_end();
+        }
+    };
+}
+
+    </script>
+  </body>
+</html>

@@ -14,11 +14,11 @@ function show_popup(x, y, parent, options) {
         if (typeof o === "string") {
             let i = menu.appendChild(document.createElement("div"));
             i.className = "title";
-            i.textContent = o;
+            i.innerHTML = rtext(o);
         } else {
             let i = menu.appendChild(document.createElement("div"));
             i.className = "option";
-            i.textContent = o.text;
+            i.innerHTML = rtext(o.text);
             i.onmousedown = i.onmouseup = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -42,9 +42,9 @@ function show_popup(x, y, parent, options) {
 }
 
 function addButton(text, action) {
-    let d = document.createElement("input");
-    d.type = "button";
-    d.value = text;
+    let d = document.createElement("button");
+    d.className = "button";
+    d.innerHTML = rtext(text);
     d.onclick = action;
     btnbar.appendChild(d);
 }
@@ -61,7 +61,9 @@ function select(e) {
 }
 
 function rtext(s) {
-    return s.replace(/[\[]([^\]]*)[\]]/g, '<span class="key">$1</span>');
+    return s.
+        replace(/[\[]([^\]]*)[\]]/g, '<span class="key">$1</span>').
+        replace(/{([^}]*)}/g, '<i class="material-icons" style="position:relative; top:6px">$1</i>');
 }
 
 function repaint() {
@@ -84,7 +86,7 @@ function repaint() {
         editor.draw(ctx);
         status.innerHTML = rtext(editor.text || "");
     } else {
-        status.innerHTML = rtext("[left]:Select, [middle]:Pan, [wheel]:Zoom, [⇧][wheel]:Undo/Redo");
+        status.innerHTML = rtext("[left]:Select, [middle]:Pan, [wheel]:Zoom, [⇑][wheel]:Undo/Redo");
     }
 }
 
@@ -194,12 +196,12 @@ function editPopup(e, x, y, ...extra) {
     select(e.editor());
     popup(x, y,
           "Edit",
-          {text: "🗑 delete", action: ()=>{ delete_entity(e); }},
-          {text: "★★ clone", action: ()=>{ clone_entity(e); }},
-          {text: "↑ up", action: ()=>{ updown_entity(e, 1); }},
-          {text: "↓ down", action: ()=>{ updown_entity(e, -1); }},
-          {text: "⇑ top", action: ()=>{ updown_entity(e, Infinity); }},
-          {text: "⇓ bottom", action: ()=>{ updown_entity(e, -Infinity); }},
+          {text: "{delete} delete", action: ()=>{ delete_entity(e); }},
+          {text: "{add_circle} clone", action: ()=>{ clone_entity(e); }},
+          {text: "{arrow_upward} up", action: ()=>{ updown_entity(e, 1); }},
+          {text: "{arrow_downward} down", action: ()=>{ updown_entity(e, -1); }},
+          {text: "{vertical_align_top} top", action: ()=>{ updown_entity(e, Infinity); }},
+          {text: "{vertical_align_bottom} bottom", action: ()=>{ updown_entity(e, -Infinity); }},
           ...extra);
 }
 

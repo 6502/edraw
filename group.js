@@ -26,7 +26,7 @@ class Group {
             } else {
                 editPopup(this, x, y,
                           "Group",
-                          {text:"◌ Explode", action:()=>{this.editor().explode()}});
+                          {text:"{center_focus_weak} ungroup", action:()=>{this.editor().explode()}});
             }
             return true;
         }

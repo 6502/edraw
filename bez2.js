@@ -15,14 +15,16 @@ class Bez2 {
         ur_set(this.style, f, val);
     }
     draw(ctx) {
-        drawBez2(ctx, this.a, this.b, this.c,
+        let b = bez2Interp(this.a, this.b, this.c);
+        drawBez2(ctx, this.a, b, this.c,
                  this.style.stroke, this.style.width);
     }
     hit(x, y, b) {
         let p = rmap(x, y)
         for (let i=0; i<=100; i++) {
-            let xx = lerp2(this.a.x, this.b.x, this.c.x, i/100),
-                yy = lerp2(this.a.y, this.b.y, this.c.y, i/100);
+            let b = bez2Interp(this.a, this.b, this.c);
+            let xx = lerp2(this.a.x, b.x, this.c.x, i/100),
+                yy = lerp2(this.a.y, b.y, this.c.y, i/100);
             if (dist({x:xx, y:yy}, p) < Math.max(this.style.width/2, 8/sf)) {
                 if (b === 0) {
                     drag(this);
@@ -34,10 +36,15 @@ class Bez2 {
         }
     }
     bbox() {
-        return {x0: Math.min(this.a.x, this.b.x, this.c.x),
-                y0: Math.min(this.a.y, this.b.y, this.c.y),
-                x1: Math.max(this.a.x, this.b.x, this.c.x),
-                y1: Math.max(this.a.y, this.b.y, this.c.y)};
+        let b = bez2Interp(this.a, this.b, this.c);
+        let x0=this.a.x, y0=this.a.y, x1=x0, y1=y0;
+        for (let i=1; i<=10; i++) {
+            let xx = lerp2(this.a.x, b.x, this.c.x, i/10),
+                yy = lerp2(this.a.y, b.y, this.c.y, i/10);
+            x0 = Math.min(xx, x0); x1 = Math.max(xx, x1);
+            y0 = Math.min(yy, y0); y1 = Math.max(yy, y1);
+        }
+        return {x0, y0, x1, y1};
     }
     transform(m) {
         ur_set(this, "a", m(this.a));
@@ -52,8 +59,6 @@ class Bez2Editor {
         this.text = "Drag control points";
     }
     draw(ctx) {
-        drawLine(ctx, this.e.a, this.e.b);
-        drawLine(ctx, this.e.b, this.e.c);
         dot(ctx, this.e.a); dot(ctx, this.e.b); dot(ctx, this.e.c);
     }
     hit(x, y, b) {

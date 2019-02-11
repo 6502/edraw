@@ -49,6 +49,24 @@ function drawLine(ctx, a, b, color="#F00", width=-1) {
     ctx.stroke();
 }
 
+function bez2Interp(a, b, c) {
+    let dx0 = b.x - a.x,
+        dy0 = b.y - a.y,
+        dx1 = c.x - b.x,
+        dy1 = c.y - b.y,
+        L0 = (dx0*dx0 + dy0*dy0)**0.5,
+        L1 = (dx1*dx1 + dy1*dy1)**0.5,
+        m = (L0 + L1) == 0 ? 0.5 : L0 / (L0 + L1);
+    // at2 + bt + c
+    // c = P[0]
+    // a + b = P[2] - P[0]
+    // am² + bm = P[1] - P[0]
+    // a + b/m = (P[1] - P[0])/m²
+    // b = ((P[1] - P[0])/m² - (P[2] - P[0]))/(1/m - 1)
+    return {x: a.x + 0.5 * ((b.x-a.x)/(m*m) - (c.x - a.x)) / (1/m - 1),
+            y: a.y + 0.5 * ((b.y-a.y)/(m*m) - (c.y - a.y)) / (1/m - 1)};
+}
+
 function drawBez2(ctx, a, b, c, color="#F00", width=-1) {
     ctx.beginPath();
     ctx.moveTo(a.x*sf+zx, a.y*sf+zy);

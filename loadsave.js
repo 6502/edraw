@@ -1,4 +1,4 @@
-let EntityTypes = [Circle, Bez2, Polygon, Group, Text],
+let EntityTypes = [Circle, Bez2, Polygon, Group, Text, Image],
     EntityTypeNames = EntityTypes.map(t => t.name);
 
 function save(entities) {
@@ -7,7 +7,7 @@ function save(entities) {
                                   if (e && EntityTypes.indexOf(e.constructor) >= 0) {
                                       let t = {type: e.constructor.name};
                                       for (let k of Object.keys(e)) {
-                                          t[k] = e[k];
+                                          t[k] = k === "image" ? e[k].src : e[k];
                                       }
                                       return t;
                                   } else {
@@ -25,7 +25,12 @@ function load(s) {
                               let ne = Object.create(EntityTypes[i].prototype);
                               for (let k of Object.keys(e)) {
                                   if (k !== 'type') {
-                                      ne[k] = e[k];
+                                      if (k === "image") {
+                                          let img = ne[k] = document.createElement("img");
+                                          img.src = e[k];
+                                      } else {
+                                          ne[k] = e[k];
+                                      }
                                   }
                               }
                               return ne;

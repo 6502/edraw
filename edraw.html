@@ -9,6 +9,7 @@
     <canvas id="canvas"></canvas>
     <div id="status"></div>
     <div id="btnbar"></div>
+    <script src="image.js"></script>
     <script src="text.js"></script>
     <script src="circle.js"></script>
     <script src="bez2.js"></script>
@@ -32,6 +33,26 @@ function clone(x) {
     Object.keys(x).forEach(k => y[k] = x[k]);
     return y;
 }
+
+window.addEventListener("paste", (event)=>{
+    if (event.clipboardData && event.clipboardData.items) {
+        for (let i=0; i<event.clipboardData.items.length; i++) {
+            let ii = event.clipboardData.items[i];
+            if (ii.type.slice(0,6) === "image/") {
+                let img = document.createElement("img"),
+                    fr = new FileReader();
+                img.onload = ()=>{
+                    entities.push(new Image({x:100, y:100}, {x:200, y:100}, img));
+                    invalidate();
+                };
+                fr.onload = (e) => {
+                    img.src = e.target.result;
+                };
+                fr.readAsDataURL(ii.getAsFile());
+            }
+        }
+    }
+});
 
     </script>
   </body>

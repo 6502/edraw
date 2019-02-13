@@ -132,3 +132,14 @@ function drawText(ctx, p0, p1, h, text, color="#F00") {
     ctx.fillText(text, 0, 0);
     ctx.restore();
 }
+
+function drawImage(ctx, p0, p1, img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.translate(p0.x*sf+zx, p0.y*sf+zy);
+    ctx.rotate(Math.atan2(p1.y - p0.y, p1.x - p0.x));
+    let w = sf * dist(p0, p1),
+        h = w * img.height / img.width;
+    ctx.drawImage(img, 0, -h, w, h);
+    ctx.restore();
+}

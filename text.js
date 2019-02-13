@@ -119,7 +119,7 @@ function draw_text() {
         draw(ctx) {
         },
         hit(x, y, b) {
-            let c = new Text(rmap(x, y), rmap(x+1, y), 50, "", {fill:"#ABC"});
+            let c = new Text(rmap(x, y), rmap(x+50, y), 50, "", {fill:"#ABC"});
             ur_begin("Text draw");
             ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
             ur_end();
@@ -129,7 +129,8 @@ function draw_text() {
             track((x, y) => {
                 if (!first) undo();
                 ur_begin("Text line drag");
-                ur_set(c, "p1", {x, y});
+                ur_set(c, "p0", {x, y});
+                ur_set(c, "p1", {x:x+50, y:y});
                 ur_end();
                 first = false;
             });

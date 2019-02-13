@@ -1,5 +1,6 @@
 addButton("{cloud_download} Load", ()=>{ drawingDialog(false); });
 addButton("{cloud_upload} Save", ()=>{ drawingDialog(true); });
+
 addSpace();
 
 addButton("{undo} Undo", ()=>{ editor=undefined; undo(); });
@@ -8,6 +9,7 @@ addSpace();
 addButton("Add Circle", draw_circle);
 addButton("Add Curve", draw_curve);
 addButton("Add Polygon", draw_polygon);
+addButton("Add Text", draw_text);
 
 addSpace();
 

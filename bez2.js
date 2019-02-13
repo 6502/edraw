@@ -22,9 +22,9 @@ class Bez2 {
     hit(x, y, b) {
         let p = rmap(x, y)
         for (let i=0; i<=100; i++) {
-            let b = bez2Interp(this.a, this.b, this.c);
-            let xx = lerp2(this.a.x, b.x, this.c.x, i/100),
-                yy = lerp2(this.a.y, b.y, this.c.y, i/100);
+            let bp = bez2Interp(this.a, this.b, this.c);
+            let xx = lerp2(this.a.x, bp.x, this.c.x, i/100),
+                yy = lerp2(this.a.y, bp.y, this.c.y, i/100);
             if (dist({x:xx, y:yy}, p) < Math.max(this.style.width/2, 8/sf)) {
                 if (b === 0) {
                     drag(this);

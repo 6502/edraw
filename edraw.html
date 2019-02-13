@@ -42,7 +42,14 @@ window.addEventListener("paste", (event)=>{
                 let img = document.createElement("img"),
                     fr = new FileReader();
                 img.onload = ()=>{
-                    entities.push(new Image({x:100, y:100}, {x:200, y:100}, img));
+                    let p0 = rmap(innerWidth/2, innerHeight/2),
+                        w = img.width, h = img.height;
+                    let c = new Image({x:p0.x-w/2, y:p0.y+h/2},
+                                      {x:p0.x+w/2, y:p0.y+h/2},
+                                      img);
+                    ur_begin("Image paste");
+                    ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
+                    ur_end();
                     invalidate();
                 };
                 fr.onload = (e) => {

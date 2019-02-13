@@ -223,6 +223,14 @@ canvas.addEventListener("wheel", (event) => {
     }
 });
 
+document.onkeydown = (event)=>{
+    if (editor && editor.key) {
+        editor.key(event.key);
+        invalidate();
+    }
+    return true;
+};
+
 function drag(e) {
     let first = true, p;
     select(e.editor());

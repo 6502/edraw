@@ -1,4 +1,4 @@
-let EntityTypes = [Circle, Bez2, Polygon, Group],
+let EntityTypes = [Circle, Bez2, Polygon, Group, Text],
     EntityTypeNames = EntityTypes.map(t => t.name);
 
 function save(entities) {

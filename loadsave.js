@@ -47,14 +47,16 @@ function icon(entities) {
             bb.y1 = Math.max(bb.y1, b.y1);
         }
     });
-    let osf = sf, ozx = zx; ozy = zy;
-    sf = Math.min(64/(bb.x1 - bb.x0), 64/(bb.y1 - bb.y0));
-    zx = 32 - sf*(bb.x0 + bb.x1)/2;
-    zy = 32 - sf*(bb.y0 + bb.y1)/2;
     let canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     canvas.width = canvas.height = 64;
-    entities.forEach(e => e.draw(ctx));
-    sf = osf; zx = ozx; zy = ozy;
+    if (bb !== undefined) {
+        let osf = sf, ozx = zx; ozy = zy;
+        sf = Math.min(64/(bb.x1 - bb.x0), 64/(bb.y1 - bb.y0));
+        zx = 32 - sf*(bb.x0 + bb.x1)/2;
+        zy = 32 - sf*(bb.y0 + bb.y1)/2;
+        entities.forEach(e => e.draw(ctx));
+        sf = osf; zx = ozx; zy = ozy;
+    }
     return canvas;
 }
 

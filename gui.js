@@ -182,6 +182,7 @@ canvas.onmousedown = (event) => {
                   {text: "circle", action: draw_circle},
                   {text: "curve", action: draw_curve},
                   {text: "polygon", action: draw_polygon},
+                  {text: "text", action: draw_text},
                   "Grid",
                   {text: "10", action: ()=>{ grid=10; invalidate(); }},
                   {text: "20", action: ()=>{ grid=20; invalidate(); }},

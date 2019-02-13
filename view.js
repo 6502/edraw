@@ -119,3 +119,16 @@ function fillPolygon(ctx, pts, color="#F00") {
     ctx.fillStyle = color;
     ctx.fill();
 }
+
+function drawText(ctx, p0, p1, h, text, color="#F00") {
+    ctx.save();
+    ctx.beginPath();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = h*sf + "px sans-serif";
+    ctx.fillStyle = color;
+    ctx.translate(p0.x*sf+zx, p0.y*sf+zy);
+    ctx.rotate(Math.atan2(p1.y - p0.y, p1.x - p0.x));
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+}

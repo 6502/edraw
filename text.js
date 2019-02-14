@@ -127,10 +127,11 @@ function draw_text() {
             repaint();
             let first = true;
             track((x, y) => {
+                let p = rmap(x, y);
                 if (!first) undo();
                 ur_begin("Text line drag");
-                ur_set(c, "p0", {x, y});
-                ur_set(c, "p1", {x:x+50, y:y});
+                ur_set(c, "p0", p);
+                ur_set(c, "p1", {x:p.x+50, y:p.y});
                 ur_end();
                 first = false;
             });

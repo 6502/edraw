@@ -225,8 +225,11 @@ canvas.addEventListener("wheel", (event) => {
 
 document.onkeydown = (event)=>{
     if (editor && editor.key) {
+        event.preventDefault();
+        event.stopPropagation();
         editor.key(event.key);
         invalidate();
+        return false;
     }
     return true;
 };

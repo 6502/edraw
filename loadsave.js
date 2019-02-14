@@ -17,26 +17,32 @@ function save(entities) {
     return data;
 }
 
-function load(s) {
-    return JSON.parse(s,
-                      (key, e) => {
-                          let i = e && e.type ? EntityTypeNames.indexOf(e.type) : -1;
-                          if (i >= 0) {
-                              let ne = Object.create(EntityTypes[i].prototype);
-                              for (let k of Object.keys(e)) {
-                                  if (k !== 'type') {
-                                      if (k === "image") {
-                                          let img = ne[k] = document.createElement("img");
-                                          img.src = e[k];
-                                      } else {
-                                          ne[k] = e[k];
-                                      }
-                                  }
-                              }
-                              return ne;
-                          }
-                          return e;
-                      });
+function load(s, f) {
+    let c = 0,
+        doc = JSON.parse(s,
+                         (key, e) => {
+                             let i = e && e.type ? EntityTypeNames.indexOf(e.type) : -1;
+                             if (i >= 0) {
+                                 let ne = Object.create(EntityTypes[i].prototype);
+                                 for (let k of Object.keys(e)) {
+                                     if (k !== 'type') {
+                                         if (k === "image") {
+                                             let img = ne[k] = document.createElement("img");
+                                             c++;
+                                             img.onload = ()=>{
+                                                 if (--c === 0) f(doc);
+                                             };
+                                             img.src = e[k];
+                                         } else {
+                                             ne[k] = e[k];
+                                         }
+                                     }
+                                 }
+                                 return ne;
+                             }
+                             return e;
+                         });
+    if (c === 0) f(doc);
 }
 
 function icon(entities) {
@@ -55,12 +61,12 @@ function icon(entities) {
     let canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
     canvas.width = canvas.height = 64;
     if (bb !== undefined) {
+        canvas.width = canvas.height = 64;
         let osf = sf, ozx = zx; ozy = zy;
         sf = Math.min(64/(bb.x1 - bb.x0), 64/(bb.y1 - bb.y0));
         zx = 32 - sf*(bb.x0 + bb.x1)/2;
         zy = 32 - sf*(bb.y0 + bb.y1)/2;
         entities.forEach(e => e.draw(ctx));
-        sf = osf; zx = ozx; zy = ozy;
     }
     return canvas;
 }
@@ -102,25 +108,6 @@ function drawingDialog(saving) {
             ctx.strokeStyle = "#FFF";
             ctx.lineWidth = 5;
             ctx.stroke();
-        } else {
-            let ee = load(drawings[i]);
-            ic = icon(ee);
-            if (!saving) {
-                ic.onmousedown = (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    entities = ee;
-                    undo_stack = [];
-                    redo_stack = [];
-                    ur_level = 0;
-                    editor = undefined;
-                    sf = 1; zx = 0; zy = 0;
-                    invalidate();
-                    document.body.removeChild(g);
-                };
-            }
-        }
-        if (saving) {
             ic.onmousedown = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -128,8 +115,35 @@ function drawingDialog(saving) {
                 localStorage.setItem("edraw_archive", drawings.join("\n"));
                 document.body.removeChild(g);
             };
+            e.appendChild(ic);
+        } else {
+            load(drawings[i], (ee)=>{
+                ic = icon(ee);
+                if (saving) {
+                    ic.onmousedown = (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        drawings[i] = save(entities);
+                        localStorage.setItem("edraw_archive", drawings.join("\n"));
+                        document.body.removeChild(g);
+                    };
+                } else {
+                    ic.onmousedown = (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        entities = ee;
+                        undo_stack = [];
+                        redo_stack = [];
+                        ur_level = 0;
+                        editor = undefined;
+                        sf = 1; zx = 0; zy = 0;
+                        invalidate();
+                        document.body.removeChild(g);
+                    };
+                }
+                e.appendChild(ic);
+            });
         }
-        e.appendChild(ic);
     }
     document.body.appendChild(g);
 }

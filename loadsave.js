@@ -67,6 +67,7 @@ function icon(entities) {
         zx = 32 - sf*(bb.x0 + bb.x1)/2;
         zy = 32 - sf*(bb.y0 + bb.y1)/2;
         entities.forEach(e => e.draw(ctx));
+        sf = osf; zx = ozx; zy = ozy;
     }
     return canvas;
 }

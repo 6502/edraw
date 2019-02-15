@@ -1,8 +1,7 @@
 class Text {
-    constructor(p0, p1, h, text, style) {
+    constructor(p0, p1, text, style) {
         this.p0 = p0;
         this.p1 = p1;
-        this.h = h;
         this.text = text;
         this.style = style;
     }
@@ -10,19 +9,20 @@ class Text {
         return new TextEditor(this);
     }
     clone() {
-        return new Text(this.p0, this.p1, this.h, this.text, clone(this.style));
+        return new Text(this.p0, this.p1, this.text, clone(this.style));
     }
     setStyle(f, val) {
         ur_set(this.style, f, val);
     }
     draw(ctx) {
-        drawText(ctx, this.p0, this.p1, this.h, this.text||"<text>", this.style.fill);
+        drawText(ctx, this.p0, this.p1, this.text||"<text>", this.style.fill);
     }
     hp() {
+        let w = textWidth(this.p0, this.p1, this.text||"<text>");
         let ox = -(this.p1.y - this.p0.y), oy = this.p1.x - this.p0.x,
             L = (ox**2 + oy**2)**0.5,
-            nx = -ox/L, ny = -oy/L;
-        return {x:this.p0.x+nx*this.h, y:this.p0.y+ny*this.h};
+            nx = ox/L, ny = oy/L;
+        return {x:this.p0.x+nx*w, y:this.p0.y+ny*w};
     }
     hit(x, y, b) {
         let p = rmap(x, y);
@@ -48,7 +48,6 @@ class Text {
         let mp0 = m(this.p0), mp1 = m(this.p1);
         ur_set(this, "p0", mp0);
         ur_set(this, "p1", mp1);
-        ur_set(this, "h", this.h * dist(mp0, mp1) / dist(this.p0, this.p1));
     }
 };
 
@@ -63,21 +62,9 @@ class TextEditor {
         drawLine(ctx, this.e.p0, hp);
         dot(ctx, this.e.p0);
         dot(ctx, this.e.p1);
-        dot(ctx, hp);
     }
     hit(x, y, b) {
         let p = rmap(x, y), hp = this.e.hp();
-        if (dist(p, hp) < 8/sf) {
-            let first = true;
-            track((x, y) => {
-                if (!first) undo();
-                ur_begin("Text size drag");
-                ur_set(this.e, "h", dist(rmap(x, y), this.e.p0));
-                ur_end();
-                first = false;
-            });
-            return true;
-        }
         if (dist(p, this.e.p0) < 8/sf || dist(p, this.e.p1) < 8/sf) {
             let first = true,
                 w = dist(p, this.e.p0) < dist(p, this.e.p1) ? "p0" : "p1";
@@ -119,7 +106,7 @@ function draw_text() {
         draw(ctx) {
         },
         hit(x, y, b) {
-            let c = new Text(rmap(x, y), rmap(x+50, y), 50, "", {fill:"#ABC"});
+            let c = new Text(rmap(x, y), rmap(x, y-50), "", {fill:"#000"});
             ur_begin("Text draw");
             ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
             ur_end();
@@ -131,7 +118,7 @@ function draw_text() {
                 if (!first) undo();
                 ur_begin("Text line drag");
                 ur_set(c, "p0", p);
-                ur_set(c, "p1", {x:p.x+50, y:p.y});
+                ur_set(c, "p1", {x:p.x, y:p.y-50});
                 ur_end();
                 first = false;
             });

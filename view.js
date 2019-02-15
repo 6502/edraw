@@ -120,17 +120,22 @@ function fillPolygon(ctx, pts, color="#F00") {
     ctx.fill();
 }
 
-function drawText(ctx, p0, p1, h, text, color="#F00") {
+function drawText(ctx, p0, p1, text, color="#F00") {
     ctx.save();
     ctx.beginPath();
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.font = h*sf + "px sans-serif";
+    ctx.font = dist(p0, p1)*sf + "px sans-serif";
     ctx.fillStyle = color;
     ctx.translate(p0.x*sf+zx, p0.y*sf+zy);
-    ctx.rotate(Math.atan2(p1.y - p0.y, p1.x - p0.x));
+    ctx.rotate(Math.atan2(p1.y-p0.y, p1.x-p0.x)+Math.PI/2);
     ctx.fillText(text, 0, 0);
     ctx.restore();
+}
+
+function textWidth(p0, p1, text) {
+    ctx.font = dist(p0, p1) + "px sans-serif";
+    return ctx.measureText(text).width;
 }
 
 function drawImage(ctx, p0, p1, img) {

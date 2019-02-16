@@ -106,7 +106,8 @@ function draw_text() {
         draw(ctx) {
         },
         hit(x, y, b) {
-            let c = new Text(rmap(x, y), rmap(x, y-50), "", {fill:"#000"});
+            let p = rmap(x, y),
+                c = new Text(p, {x:p.x, y:p.y-50}, "", {fill:"#000"});
             ur_begin("Text draw");
             ur_add({undo(){ entities.pop(); }, redo(){ entities.push(c); }});
             ur_end();

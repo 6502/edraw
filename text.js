@@ -68,17 +68,27 @@ class TextEditor {
         if (dist(p, this.e.p0) < 8/sf || dist(p, this.e.p1) < 8/sf) {
             let first = true,
                 w = dist(p, this.e.p0) < dist(p, this.e.p1) ? "p0" : "p1";
-            track((x, y) => {
-                let q = rmap(x, y);
-                let np0 = {x: this.e.p0.x + q.x - p.x,
-                           y: this.e.p0.y + q.y - p.y},
-                    np1 = {x: this.e.p1.x + q.x - p.x,
-                           y: this.e.p1.y + q.y - p.y};
-                p = q;
+            track((x, y, b, phase, mods) => {
+                let p = rmap(x, y);
                 if (!first) undo();
                 ur_begin("Text point drag");
-                if (w === "p0") ur_set(this.e, "p0", np0);
-                ur_set(this.e, "p1", np1);
+                if (w === "p0") {
+                    let dx = this.e.p1.x - this.e.p0.x,
+                        dy = this.e.p1.y - this.e.p0.y;
+                    ur_set(this.e, "p0", p);
+                    ur_set(this.e, "p1", {x: p.x + dx, y: p.y + dy});
+                } else {
+                    if (mods & track.SHIFT) {
+                        let a = Math.atan2(p.y - this.e.p0.y, p.x - this.e.p0.x),
+                            d = ((p.x - this.e.p0.x) ** 2 + (p.y - this.e.p0.y) ** 2) ** 0.5;
+                        a = Math.floor(a / (Math.PI / 8) + 0.5) * (Math.PI / 8);
+                        p = {
+                            x: this.e.p0.x + d * Math.cos(a),
+                            y: this.e.p0.y + d * Math.sin(a)
+                        };
+                    }
+                    ur_set(this.e, "p1", p);
+                }
                 ur_end();
                 first = false;
             });

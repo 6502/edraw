@@ -90,12 +90,15 @@ class GroupEditor {
                 if (Math.min(dist(a, p), dist(b, p), dist(c, p), dist(d, p)) < 8/sf) {
                     let first = true, a0 = Math.atan2(p.y-this.e.crot.y, p.x-this.e.crot.x),
                         cx = this.e.crot.x, cy =this.e.crot.y;
-                    track((x, y, b) => {
+                    track((x, y, b, phase, mods) => {
                         let p = rmap(x, y);
                         if (!first) undo();
                         ur_begin("Group rotate");
-                        let aa = Math.atan2(p.y-this.e.crot.y, p.x-this.e.crot.x) - a0,
-                            cs = Math.cos(aa), sn = Math.sin(aa);
+                        let aa = Math.atan2(p.y-this.e.crot.y, p.x-this.e.crot.x) - a0;
+                        if (mods & track.SHIFT) {
+                            aa = Math.floor(aa / (Math.PI/8) + 0.5) * (Math.PI/8);
+                        }
+                        let cs = Math.cos(aa), sn = Math.sin(aa);
                         function r(p) {
                             let dx = p.x - cx, dy = p.y - cy;
                             return {x: cx + dx*cs - dy*sn,

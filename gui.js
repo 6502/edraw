@@ -91,21 +91,29 @@ function repaint() {
 }
 
 function track(f) {
+    function mods(event) {
+        return (event.shiftKey ? 1 : 0) + (event.ctrlKey ? 2 : 0) + (event.altKey ? 4 : 0);
+    }
+
     function mm(event) {
         event.preventDefault();
         event.stopPropagation();
-        f(event.clientX, event.clientY, event.button, 1);
+        f(event.clientX, event.clientY, event.button, 1, mods(event));
     }
     function mu(event) {
         event.preventDefault();
         event.stopPropagation();
-        f(event.clientX, event.clientY, event.button, 2);
+        f(event.clientX, event.clientY, event.button, 2, mods(event));
         document.removeEventListener("mousemove", mm);
         document.removeEventListener("mouseup", mu);
     }
     document.addEventListener("mousemove", mm);
     document.addEventListener("mouseup", mu);
 }
+
+track.SHIFT = 1;
+track.CTRL = 2;
+track.ALT = 4
 
 document.oncontextmenu = (event) => {
     event.preventDefault();

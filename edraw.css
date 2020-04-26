@@ -46,14 +46,17 @@ body {
     background: rgba(0,0,0,0.25);
 }
 #btnbar > button {
-    padding: 6px;
+    padding: 3px;
     font-size: 16px;
     font-weight: bold;
     border-radius: 4px;
     background: #CCC;
     width: 120px;
     display: block;
-    margin: 10px;
+    margin: 4px;
+}
+.palette {
+    text-align: center;
 }
 #btnbar > .space {
     height: 8px;

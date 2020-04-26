@@ -26,9 +26,7 @@ addButton("{add_circle} Clone", ()=>{ editor && clone_entity(editor.e) });
 addSpace();
 
 let palette = document.createElement("div");
-palette.style.width = "120px";
-palette.style.textAlign = "center";
-palette.style.margin = "10px";
+palette.className = "palette";
 
 btnbar.appendChild(palette);
 for (let i=0; i<8; i++) {
@@ -46,4 +44,9 @@ for (let i=0; i<8; i++) {
             ur_end();
         }
     };
+    if (i % 2 == 1) {
+        palette.appendChild(document.createElement("div"));
+    }
 }
+
+addSpace();
